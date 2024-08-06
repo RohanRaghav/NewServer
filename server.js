@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -40,7 +41,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // MongoDB connection
-mongoose.connect('mongodb+srv://rohanraghav91:rohanraghav@cluster1.up4eqhl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1', {
+const mongoUri = process.env.MONGODB_URI;
+
+mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 }).then(() => {
