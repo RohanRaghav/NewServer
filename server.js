@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-const allowedOrigins = ['https://boot-camp-topaz.vercel.app'];
+const allowedOrigins = ['https://boot-camp-topaz.vercel.app',"http://localhost:3000"];
 
 app.use(cors({
   origin: function (origin, callback) {
