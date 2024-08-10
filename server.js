@@ -5,6 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -12,26 +13,34 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-const allowedOrigins = ['https://boot-camp-topaz.vercel.app',"http://localhost:3000"];
+const allowedOrigins = ['https://boot-camp-topaz.vercel.app', 'http://localhost:3000'];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  }
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+  })
+);
+
+// Ensure the uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
 
 // Serve static files from the 'uploads' directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(uploadDir));
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
@@ -43,14 +52,17 @@ const upload = multer({ storage });
 // MongoDB connection
 const mongoUri = process.env.MONGODB_URI;
 
-mongoose.connect(mongoUri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => {
-  console.log('Connected to MongoDB Atlas');
-}).catch((error) => {
-  console.error('Error connecting to MongoDB Atlas:', error.message);
-});
+mongoose
+  .connect(mongoUri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log('Connected to MongoDB Atlas');
+  })
+  .catch((error) => {
+    console.error('Error connecting to MongoDB Atlas:', error.message);
+  });
 
 // Define schemas and models
 const userInfoSchema = new mongoose.Schema({
@@ -117,11 +129,11 @@ const Assessment = mongoose.model('Assessment', assessmentSchema);
 
 // Routes
 app.post('/upload-assessment', upload.single('file'), async (req, res) => {
-  const { username, UID,  day } = req.body;
+  const { username, UID, day } = req.body;
   const file = req.file;
-  
 
   if (!file) {
+    console.error('No file uploaded');
     return res.status(400).send('No file uploaded');
   }
 
@@ -130,12 +142,14 @@ app.post('/upload-assessment', upload.single('file'), async (req, res) => {
       username,
       UID,
       day,
-      filePath: file.path,
+      filePath: path.join('uploads', file.filename),
     });
 
     await assessment.save();
+    console.log('Assessment saved:', assessment);
     res.send('Assessment submitted successfully!');
   } catch (error) {
+    console.error('Error submitting assessment:', error.message);
     res.status(500).send('Error submitting assessment: ' + error.message);
   }
 });
