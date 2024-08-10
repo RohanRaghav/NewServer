@@ -117,8 +117,9 @@ const Assessment = mongoose.model('Assessment', assessmentSchema);
 
 // Routes
 app.post('/upload-assessment', upload.single('file'), async (req, res) => {
-  const { username, UID, course, year, day } = req.body;
+  const { username, UID,  day } = req.body;
   const file = req.file;
+  
 
   if (!file) {
     return res.status(400).send('No file uploaded');
@@ -128,8 +129,6 @@ app.post('/upload-assessment', upload.single('file'), async (req, res) => {
     const assessment = new Assessment({
       username,
       UID,
-      course,
-      year,
       day,
       filePath: file.path,
     });
