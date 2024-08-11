@@ -1,11 +1,9 @@
-require('dotenv').config();
+require('dotenv').config(); // Load environment variables
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
-const multer = require('multer');
-const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -13,59 +11,49 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-const allowedOrigins = ['https://boot-camp-topaz.vercel.app'];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-        return callback(new Error(msg), false);
-      }
-      return callback(null, true);
-    },
-  })
-);
-
-
-const upload = multer({ storage });
+const allowedOrigins = ["http://localhost:3000"];
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  }
+}));
 
 // MongoDB connection
 const mongoUri = process.env.MONGODB_URI;
 
-mongoose
-  .connect(mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    console.log('Connected to MongoDB Atlas');
-  })
-  .catch((error) => {
-    console.error('Error connecting to MongoDB Atlas:', error.message);
-  });
+if (!mongoUri) {
+  console.error('Error: MONGODB_URI is not defined in the environment variables.');
+  process.exit(1); // Exit the process with an error code
+}
 
-// Define schemas and models
-const userInfoSchema = new mongoose.Schema({
-  username: { type: String, required: true },
-  UID: { type: String, required: true },
-  course: { type: String, required: true },
-  Department: { type: String, required: true },
-  Year: { type: Number, required: true },
-  PhNumber: { type: String, required: true },
-  Email: { type: String, required: true },
+mongoose.connect(mongoUri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => {
+  console.log('Connected to MongoDB Atlas');
+}).catch((error) => {
+  console.error('Error connecting to MongoDB Atlas:', error.message);
 });
 
-const UserInfo = mongoose.model('UserInfo', userInfoSchema);
-
+// Define the schema and model for 'questions' collection
 const questionSchema = new mongoose.Schema({
   title: String,
   description: String,
+  option1: String,
+  option2: String,
+  option3: String,
+  option4: String,
+  correctAnswer: String
 });
-
 const Question = mongoose.model('Question', questionSchema);
 
+// Define the schema and model for 'answers' collection
 const answerSchema = new mongoose.Schema({
   questionTitle: String,
   answer: String,
@@ -76,159 +64,157 @@ const answerSchema = new mongoose.Schema({
   Department: String,
   Year: Number,
   PhNumber: String,
+  timestamp: { type: Date, default: Date.now }
 });
-
 const Answer = mongoose.model('Answer', answerSchema);
 
-const feedbackSchema = new mongoose.Schema({
+// Define the schema and model for 'memberinfo' collection
+const memberInfoSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  Designation: { type: String, required: true },
+  PhNumber: { type: String, required: true },
+  Email: { type: String, required: true },
+});
+const UserInfo = mongoose.model('MemberInfo', memberInfoSchema);
+
+// Define the schema and model for the 'assessments' collection
+const assessmentSchema = new mongoose.Schema({
   username: String,
-  UID: String,
-  course: String,
-  feedback: String,
-  rating: Number,
-  Department: String,
-  Year: Number,
+  file: {
+    data: Buffer,
+    contentType: String,
+    filename: String,
+  },
 });
+const Assessment = mongoose.model('assessments', assessmentSchema);
 
-const Feedback = mongoose.model('Feedback', feedbackSchema);
-
+// Define the schema and model for 'content' collection
 const contentSchema = new mongoose.Schema({
-  message: String,
-  timestamp: Date,
+  message: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now }
 });
-
 const Content = mongoose.model('Content', contentSchema);
 
-const assessmentSchema = new mongoose.Schema({
-  username: { type: String, required: true },
-  UID: { type: String, required: true },
-  day: { type: Number, required: true },
-  filePath: { type: String }, // Added filePath field
-  timestamp: { type: Date, default: Date.now },
-});
-
-const Assessment = mongoose.model('Assessment', assessmentSchema);
-
-// Routes
-app.post('/upload-assessment', upload.single('file'), async (req, res) => {
-  const { username, UID, day } = req.body;
-  const file = req.file;
-
-  if (!file) {
-    console.error('No file uploaded');
-    return res.status(400).send('No file uploaded');
-  }
-
+// Route to get notifications (data from the 'answers' collection)
+app.get('/api/notifications', async (req, res) => {
   try {
-    const assessment = new Assessment({
-      username,
-      UID,
-      day,
-      filePath: path.join('uploads', file.filename),
-    });
-
-    await assessment.save();
-    console.log('Assessment saved:', assessment);
-    res.send('Assessment submitted successfully!');
+    const notifications = await Answer.find().sort({ timestamp: -1 });
+    res.json(notifications);
   } catch (error) {
-    console.error('Error submitting assessment:', error.message);
-    res.status(500).send('Error submitting assessment: ' + error.message);
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
   }
 });
 
-app.get('/assessment/:id', async (req, res) => {
-  try {
-    const assessment = await Assessment.findById(req.params.id);
-
-    if (!assessment) {
-      return res.status(404).send('Assessment not found');
-    }
-
-    res.sendFile(path.join(__dirname, assessment.filePath));
-  } catch (error) {
-    res.status(500).send('Error retrieving file: ' + error.message);
-  }
-});
-
-app.get('/api/questions', async (req, res) => {
+// Route to get questions from the 'questions' collection
+app.get('/api/reqquestions', async (req, res) => {
   try {
     const questions = await Question.find();
     res.json(questions);
   } catch (error) {
-    res.status(500).send('Error fetching questions: ' + error.message);
+    console.error('Error fetching questions:', error);
+    res.status(500).json({ error: 'Failed to fetch questions' });
   }
 });
 
-app.post('/submit-test', async (req, res) => {
-  console.log('Received request body:', req.body);
-  const { username, UID, course, Department, answers, Year } = req.body;
-
-  const answerDocuments = answers.map((answer) => ({
-    ...answer,
-    username,
-    UID,
-    course,
-    Department,
-    Year,
-  }));
-
+// Route to post questions to the 'questions' collection
+app.post('/api/questions', async (req, res) => {
   try {
-    await Answer.insertMany(answerDocuments);
-    res.status(201).send('Test submitted successfully!');
+    const questions = req.body.questions; // assuming questions are sent as an array
+
+    // Validate the structure of each question
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: 'Invalid questions format. Expected an array of questions.' });
+    }
+
+    // Validate each question
+    for (const question of questions) {
+      const { title, description, option1, option2, option3, option4, correctAnswer } = question;
+
+      if (!title || !description || !option1 || !option2 || !option3 || !option4 || !correctAnswer) {
+        return res.status(400).json({ error: 'Each question must include title, description, option1, option2, option3, option4, and correctAnswer.' });
+      }
+    }
+
+    // Save the questions to the database
+    const savedQuestions = await Question.insertMany(questions);
+
+    // Respond with the saved questions
+    res.status(201).json(savedQuestions);
   } catch (error) {
-    res.status(400).send('Error submitting test: ' + error.message);
+    console.error('Error saving questions:', error);
+    res.status(500).json({ error: 'Failed to save questions' });
   }
 });
 
-app.post('/submit-feedback', async (req, res) => {
-  const { username, UID, course, feedback, rating, Department, Year } = req.body;
+// Route to submit user information
+app.post('/submit-memberinfo', async (req, res) => {
+  const { username, Designation, PhNumber, Email } = req.body;
 
-  const feedbackDocument = new Feedback({
+  const memberInfo = new UserInfo({
     username,
-    UID,
-    course,
-    feedback,
-    rating,
-    Department,
-    Year,
-  });
-
-  try {
-    await feedbackDocument.save();
-    res.status(201).send('Feedback submitted successfully!');
-  } catch (error) {
-    res.status(400).send('Error submitting feedback: ' + error.message);
-  }
-});
-
-app.post('/submit-info', async (req, res) => {
-  const { username, UID, course, Department, Year, PhNumber, Email, day } = req.body;
-
-  const userInfo = new UserInfo({
-    username,
-    UID,
-    course,
-    Department,
-    Year,
+    Designation,
     PhNumber,
-    Email,
-    day,
+    Email
   });
 
   try {
-    await userInfo.save();
+    await memberInfo.save();
     res.status(201).send('User info saved');
   } catch (error) {
     res.status(400).send('Error saving user info: ' + error.message);
   }
 });
 
-app.get('/api/notifications', async (req, res) => {
+// Route to get all PDF files from the 'assessments' collection
+app.get('/api/assessments', async (req, res) => {
   try {
-    const notifications = await Content.find().sort({ timestamp: -1 });
-    res.json(notifications);
+    const assessments = await Assessment.find({}, 'username file.filename');
+    res.json(assessments);
   } catch (error) {
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error fetching assessments:', error);
+    res.status(500).json({ error: 'Failed to fetch assessments' });
+  }
+});
+
+// Route to download a specific PDF file
+app.get('/api/assessments/:id', async (req, res) => {
+  try {
+    const assessment = await Assessment.findById(req.params.id);
+    if (!assessment) {
+      return res.status(404).send('File not found');
+    }
+    res.set({
+      'Content-Type': assessment.file.contentType,
+      'Content-Disposition': `attachment; filename="${assessment.file.filename}"`,
+    });
+    res.send(assessment.file.data);
+  } catch (error) {
+    console.error('Error fetching the file:', error);
+    res.status(500).json({ error: 'Failed to fetch the file' });
+  }
+});
+
+// Route to handle content upload
+app.post('/api/uploadContent', async (req, res) => {
+  if (req.method === 'POST') {
+    try {
+      const { message } = req.body;
+
+      if (!message) {
+        return res.status(400).json({ message: 'Content is required' });
+      }
+
+      const newContent = new Content({ message });
+      const result = await newContent.save();
+
+      return res.status(201).json({ message: 'Content uploaded successfully', result });
+    } catch (error) {
+      console.error('Error uploading content:', error);
+      return res.status(500).json({ message: 'Internal Server Error' });
+    }
+  } else {
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 });
 
