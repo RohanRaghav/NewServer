@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3001;
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const allowedOrigins = ["http://localhost:3000"];
+const allowedOrigins = ["https://core-team-bootcamp.vercel.app"];
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
