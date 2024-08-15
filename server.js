@@ -79,10 +79,10 @@ const UserInfo = mongoose.model('MemberInfo', memberInfoSchema);
 
 // Define the schema and model for the 'assessments' collection
 const assessmentSchema = new mongoose.Schema({
-  username: String,
-  UID: String,
-  day: Number,
-  fileUrl:String
+ username: { type: String, required: true },
+  UID: { type: String, required: true },
+  day: { type: Number, required: true },
+  fileUrl: { type: String, required: true },
 });
 const Assessment = mongoose.model('assessments', assessmentSchema);
 const notificationSchema = new mongoose.Schema({
@@ -166,7 +166,7 @@ app.post('/submit-memberinfo', async (req, res) => {
 // Route to get all PDF files from the 'assessments' collection
 app.get('/api/assessments', async (req, res) => {
   try {
-    const assessments = await Assessment.find({}, 'username fileUrl');
+    const assessments = await Assessment.find({}, 'username UID day fileUrl');
     res.json(assessments);
   } catch (error) {
     console.error('Error fetching assessments:', error);
