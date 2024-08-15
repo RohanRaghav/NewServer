@@ -80,20 +80,17 @@ const UserInfo = mongoose.model('MemberInfo', memberInfoSchema);
 // Define the schema and model for the 'assessments' collection
 const assessmentSchema = new mongoose.Schema({
   username: String,
-  file: {
-    data: Buffer,
-    contentType: String,
-    filename: String,
-  },
+  UID: String,
+  day: Number,
+  fileUrl:String
 });
 const Assessment = mongoose.model('assessments', assessmentSchema);
-
-// Define the schema and model for 'content' collection
-const contentSchema = new mongoose.Schema({
+const notificationSchema = new mongoose.Schema({
   message: { type: String, required: true },
-  timestamp: { type: Date, default: Date.now }
+  timestamp: { type: Date, default: Date.now },
 });
-const Content = mongoose.model('Content', contentSchema);
+
+const Notification = mongoose.model('Notification', notificationSchema);
 
 // Route to get notifications (data from the 'answers' collection)
 app.get('/api/notifications', async (req, res) => {
@@ -169,7 +166,7 @@ app.post('/submit-memberinfo', async (req, res) => {
 // Route to get all PDF files from the 'assessments' collection
 app.get('/api/assessments', async (req, res) => {
   try {
-    const assessments = await Assessment.find({}, 'username file.filename');
+    const assessments = await Assessment.find({}, 'username fileUrl');
     res.json(assessments);
   } catch (error) {
     console.error('Error fetching assessments:', error);
@@ -177,26 +174,7 @@ app.get('/api/assessments', async (req, res) => {
   }
 });
 
-// Route to download a specific PDF file
-app.get('/api/assessments/:id', async (req, res) => {
-  try {
-    const assessment = await Assessment.findById(req.params.id);
-    if (!assessment) {
-      return res.status(404).send('File not found');
-    }
-    res.set({
-      'Content-Type': assessment.file.contentType,
-      'Content-Disposition': `attachment; filename="${assessment.file.filename}"`,
-    });
-    res.send(assessment.file.data);
-  } catch (error) {
-    console.error('Error fetching the file:', error);
-    res.status(500).json({ error: 'Failed to fetch the file' });
-  }
-});
-
-// Route to handle content upload
-app.post('/api/uploadContent', async (req, res) => {
+app.post('/api/uploadNotification', async (req, res) => {
   if (req.method === 'POST') {
     try {
       const { message } = req.body;
@@ -205,12 +183,13 @@ app.post('/api/uploadContent', async (req, res) => {
         return res.status(400).json({ message: 'Content is required' });
       }
 
-      const newContent = new Content({ message });
-      const result = await newContent.save();
+      // Create a new notification record
+      const newNotification = new Notification({ message });
+      const result = await newNotification.save();
 
-      return res.status(201).json({ message: 'Content uploaded successfully', result });
+      return res.status(201).json({ message: 'Notification uploaded successfully', result });
     } catch (error) {
-      console.error('Error uploading content:', error);
+      console.error('Error uploading notification:', error);
       return res.status(500).json({ message: 'Internal Server Error' });
     }
   } else {
